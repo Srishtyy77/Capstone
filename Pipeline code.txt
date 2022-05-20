@@ -1,0 +1,49 @@
+                                                                   Pipline
+
+                Data:
+
+# provide the tables
+df2 = sparkSession.sql("select emp.*,salaries.salary, dpt.dept_name from employees as emp \
+                inner join dept_emp on emp.emp_no = dept_emp.emp_no \
+                inner join departments as dpt on dept_emp.dept_no = dpt.dept_no \
+                inner join titles on emp.emp_title_id = titles.title_id \
+                inner join salaries on emp.emp_no = salaries.emp_no").persist()
+
+# dropping columns
+df2 = df2.drop('emp_no', 'first_name', 'last_name', 'birth_date', 'emp_title_id', 'hire_date', 'last_date')
+
+# Vector Assembler
+Vect_InpCol = ['Out_sex', 'Out_last_performance_rating', 'Out_dept_name', 'salary']
+
+# setting label column
+df2 = df2.withColumnRenamed('left_status','label')
+
+Fixing Stages:
+
+# String Indexer
+indexer_sex = StringIndexer(inputCol='sex', outputCol='Out_sex')
+indexer_last_performance_rating = StringIndexer(inputCol='last_performance_rating', outputCol='Out_last_performance_rating')
+indexer_dept_name = StringIndexer(inputCol='dept_name', outputCol='Out_dept_name')
+
+# Vector Assembler
+assembler = VectorAssembler(inputCols = Vect_InpCol, outputCol = "features")
+
+# ML Model
+rfm = RandomForestClassifier(featuresCol="features",
+                              labelCol="label",
+                              numTrees=50,
+                              maxDepth=5,
+                              featureSubsetStrategy='onethird')
+
+# Creating Pipeline
+pipeline = Pipeline(stages= [indexer_sex, indexer_last_performance_rating, indexer_dept_name, assembler, rfm])
+
+Train Test Split:
+
+train, test = df2.randomSplit([0.7, 0.3], seed = 42)
+
+Model Fitting:
+
+model = pipeline.fit(train)
+y_pred_test = model.transform(test)
+y_pred_test.select('label', 'features', 'prediction').show(10)
